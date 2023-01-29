@@ -9,7 +9,7 @@ const TARGET_MAIL = process.env.TARGET_MAIL;
 const SENDER_MAIL = process.env.SENDER_MAIL;
 const SMTP_STRING = process.env.SMTP_STRING;
 
-//const transporter = nodemailer.createTransport(SMTP_STRING);
+const transporter = nodemailer.createTransport(SMTP_STRING);
 
 async function getStarcarData() {
     const response = await axios.get(URL);
