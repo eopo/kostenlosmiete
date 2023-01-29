@@ -211,6 +211,9 @@ async function run () {
             const email = formatEmail(changes);
             sendEmail(email);
         }
+        else {
+            console.log(`${new Date.toString()}: No changes made`);
+        }
     } catch (error) {
         logError('Fehler beim Senden der Nachricht', error)
     }
