@@ -155,32 +155,50 @@ function formatChange (change) {
     return message;
 }
 
-async function run () {
-  let currentArray = [];
-  try {
-    currentArray = await getStarcarData();
-  } catch (error) {
-    sendEmail({subject: 'Starcar: Fehler', content: `Aktuelle Daten konnten nicht gelesen werden. <br/>{${error.message}}`});
-    process.exit(1)
-  }
+function logError(fail, error, data) {
+    const message = `${fail}
+    ${error.message}
+    ${data ? `Historischer Datensatz: ${data.previousArray}<br/> Aktueller Datensatz: ${data.currentArray}`: ``}`;
+    console.log(message);
+    sendEmail({subject: 'Starcar: Fehler', content: message});
+    process.exit(1);
+}
 
-  let previousArray = [];
-  try {
-    previousArray = JSON.parse(fs.readFileSync('data.json', 'utf-8'));
-  } catch (error) {
-    sendEmail({subject: 'Starcar: Fehler', content: `Historische Daten konnten nicht gelesen werden. <br/>${error.message}`});
-  }
-  let changes;
-  try {
-    changes = compareData(currentArray, previousArray);
-  } catch (error) {
-    sendEmail({subject: 'Starcar: Fehler', content: `Fehler beim Datenvergleich: ${error.message} <br/> Historischer Datensatz: ${previousArray}<br/> Aktueller Datensatz: ${currentArray}`})
-  }
-  if (changes.length > 0) {
-    const email = formatEmail(changes);
-    sendEmail(email);
-  }
-  fs.writeFileSync('data.json', JSON.stringify(currentArray, null, 2));
+async function run () {
+    let currentArray = [];
+    try {
+        currentArray = await getStarcarData();
+    } catch (error) {
+        logError('Fehler beim Laden der aktuellen Daten', error)
+    }
+
+    let previousArray = [];
+    try {
+        previousArray = JSON.parse(fs.readFileSync('data.json', 'utf-8'));
+    } catch (error) {
+        logError('Historische Daten konnten nicht gelesen werden.', error);
+    }
+    let changes;
+    try {
+        changes = compareData(currentArray, previousArray);
+    } catch (error) {
+        logError('Fehler beim Datenvergleich', error, {previousArray,currentArray})
+    }
+
+    try {
+        if (changes.length > 0) {
+            const email = formatEmail(changes);
+            sendEmail(email);
+        }
+    } catch (error) {
+        logError('Fehler beim Senden der Nachricht', error)
+    }
+
+    try {
+        fs.writeFileSync('data.json', JSON.stringify(currentArray, null, 2));    
+    } catch (error) {
+        logError('Fehler beim schreiben der Daten', error)
+    }
 };
 
 run();
