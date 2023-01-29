@@ -9,7 +9,7 @@ const TARGET_MAIL = process.env.TARGET_MAIL;
 const SENDER_MAIL = process.env.SENDER_MAIL;
 const SMTP_STRING = process.env.SMTP_STRING;
 
-const transporter = nodemailer.createTransport(SMTP_STRING);
+//const transporter = nodemailer.createTransport(SMTP_STRING);
 
 async function getStarcarData() {
     const response = await axios.get(URL);
@@ -75,6 +75,27 @@ function sendEmail (message) {
     });
 };
 
+function findSimilar(item, array){
+    const propertiesFirstMatch = ['pickupCity','returnCity','group','model']
+
+    const similarItems = _.filter(array, _.pick(item, propertiesFirstMatch));
+    if (similarItems.length == 0) return false;
+    if (similarItems.length == 1) return similarItems[0];
+    
+    const differences = _.map(similarItems, similar => {
+        const differencePickup = Math.abs(similar.pickupTimestamp - item.pickupTimestamp)/1000;
+        const differenceReturn = Math.abs(similar.returnTimestamp - item.returnTimestamp)/1000;
+        const differnceKms = Math.abs(similar.distance - item.distance);
+        const differenceFuel = similar.fuel !== item.fuel ? 10 : 0;
+        similar.numDifference = differencePickup + differenceReturn + differnceKms + differenceFuel;
+        return similar;
+    });
+    
+    const sorted = _.sortBy(differences, 'numDifference');
+    
+    return sorted[0];
+}
+
 function compareData (currentArray, previousArray) {
     const changes = [];
 
@@ -82,31 +103,32 @@ function compareData (currentArray, previousArray) {
         if (_.find(previousArray,currentItem))
             return;
 
-        const properties = ['pickupCity','returnCity','group','model']
-        const matchset = _.pick(currentItem, properties)
-        if (similar = _.find(previousArray, matchset)) {
-            const changeItem = _.clone(currentItem);
-            changeItem.type = 'CHANGED';
-            changeItem.differences = [];
-
-            function checkDifference (field) {
-                if (similar[field] != currentItem[field])
-                { 
-                    changeItem.differences.push({
-                        field: field,
-                        oldValue: similar[field],
-                        newValue: currentItem[field]
-                    })
-                }
-            }
-            _.keys(currentItem).forEach(key => {
-                checkDifference(key);
-            })
-            return changes.push(changeItem);
+        const similar = findSimilar(currentItem, previousArray);
+        if (!similar) {
+            currentItem.type = 'NEW'
+            return changes.push(currentItem);
         }
-        
-        currentItem.type = 'NEW'
-        changes.push(currentItem);
+
+        const changeItem = _.clone(currentItem);
+        changeItem.type = 'CHANGED';
+        changeItem.differences = [];
+
+        function findDifference(field) {
+            if (similar[field] != currentItem[field])
+            { 
+                changeItem.differences.push({
+                    field: field,
+                    oldValue: similar[field],
+                    newValue: currentItem[field]
+                })
+            }
+        }
+
+        _.keys(currentItem).forEach(key => {
+            findDifference(key);
+        })
+
+        return changes.push(changeItem);
     })
 
     return changes;
@@ -139,7 +161,6 @@ function formatChange (change) {
             };
 
             if (difference.field === 'freeFuel'){
-                console.log(difference);
                 if (difference.newValue) {if (!difference.oldValue) return 'Tankfüllung hinzugefügt'}
                 else if (difference.oldValue) {if (!difference.newValue) return 'Tankfüllung entfernt'}
                 else return 'Tankfüllung geändert'
