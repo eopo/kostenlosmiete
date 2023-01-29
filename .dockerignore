@@ -1,0 +1,8 @@
+.env
+.gitignore
+.dockerignore
+.git
+Dockerfile
+node_modules
+data.json
+env.list
