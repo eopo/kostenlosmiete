@@ -212,7 +212,7 @@ async function run () {
             sendEmail(email);
         }
         else {
-            console.log(`${new Date.toString()}: No changes made`);
+            console.log(`${new Date().toString()}: No changes made`);
         }
     } catch (error) {
         logError('Fehler beim Senden der Nachricht', error)
