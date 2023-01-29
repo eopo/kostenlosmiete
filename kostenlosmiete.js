@@ -180,7 +180,7 @@ function logError(fail, error, data) {
     const message = `${fail}
     ${error.message}
     ${data ? `Historischer Datensatz: ${data.previousArray}<br/> Aktueller Datensatz: ${data.currentArray}`: ``}`;
-    console.log(message);
+    console.log(`${new Date.toString()}:${message}`);
     sendEmail({subject: 'Starcar: Fehler', content: message});
     process.exit(1);
 }
