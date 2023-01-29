@@ -156,14 +156,26 @@ function formatChange (change) {
 }
 
 async function run () {
-  let currentArray = await getStarcarData();
+  let currentArray = [];
+  try {
+    currentArray = await getStarcarData();
+  } catch (error) {
+    sendEmail({subject: 'Starcar: Fehler', content: `Aktuelle Daten konnten nicht gelesen werden. <br/>{${error.message}}`});
+    process.exit(1)
+  }
+
   let previousArray = [];
   try {
     previousArray = JSON.parse(fs.readFileSync('data.json', 'utf-8'));
   } catch (error) {
-    console.error(error);
+    sendEmail({subject: 'Starcar: Fehler', content: `Historische Daten konnten nicht gelesen werden. <br/>${error.message}`});
   }
-  const changes = compareData(currentArray, previousArray);
+  let changes;
+  try {
+    changes = compareData(currentArray, previousArray);
+  } catch (error) {
+    sendEmail({subject: 'Starcar: Fehler', content: `Fehler beim Datenvergleich: ${error.message} <br/> Historischer Datensatz: ${previousArray}<br/> Aktueller Datensatz: ${currentArray}`})
+  }
   if (changes.length > 0) {
     const email = formatEmail(changes);
     sendEmail(email);
