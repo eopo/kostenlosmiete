@@ -1,7 +1,8 @@
 {
+  "type": "module",
   "name": "kostenlosmiete",
   "version": "0.1.0-beta",
-  "description": "",
+  "description": "Tool to extract data from Starcar website and send emails with changes",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -11,7 +12,16 @@
   "dependencies": {
     "axios": "^1.2.6",
     "cheerio": "^1.0.0-rc.12",
+    "dotenv": "^16.0.3",
     "lodash": "^4.17.21",
-    "nodemailer": "^6.7.7"
-  }
+    "webchangemon": "github:eopo/webchangemon"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eopo/kostenlosmiete.git"
+  },
+  "bugs": {
+    "url": "https://github.com/eopo/kostenlosmiete/issues"
+  },
+  "homepage": "https://github.com/eopo/kostenlosmiete#readme"
 }

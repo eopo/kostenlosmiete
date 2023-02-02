@@ -1,17 +1,34 @@
-const fs = require('fs');
-const nodemailer = require('nodemailer');
-const cheerio = require('cheerio');
-const axios = require('axios').default;
-const _ = require('lodash');
+'use strict';
+
+import * as cheerio from 'cheerio';
+import {default as axios} from 'axios';
+import {default as _} from 'lodash';
+import * as webchangemon from 'webchangemon';
+
+import * as dotenv from 'dotenv';
+
+dotenv.config();
 
 const URL = 'https://www.starcar.de/specials/kostenlos-mieten/';
 const TARGET_MAIL = process.env.TARGET_MAIL;
 const SENDER_MAIL = process.env.SENDER_MAIL;
 const SMTP_STRING = process.env.SMTP_STRING;
 
-const transporter = nodemailer.createTransport(SMTP_STRING);
+const options = {
+    getCurrentData,
+    formatChange,
+    compareData,
+    toMail: TARGET_MAIL,
+    fromMail: SENDER_MAIL,
+    smtpString: SMTP_STRING,
+    mailTitle: 'Starcar-Mieten',
+    locale: 'de-DE',
+    dataPath: 'data.json',
+}
 
-async function getStarcarData() {
+const app = webchangemon.bootstrap(options);
+
+async function getCurrentData() {
     const response = await axios.get(URL);
     const html = response.data;
     const $ = cheerio.load(html);
@@ -49,31 +66,6 @@ function convertStringToTimestamp(dateString, timeString) {
     const [hour,minute] = timeString.split(':').map(split => Number.parseInt(split.trim()));
     return new Date(year, month -1, day, hour, minute).getTime();
 }; 
-
-function formatEmail (changes) {
-    const messages = changes.map(e => formatChange(e))
-    const content = messages.join('<br/><br/>') + `<br/><br/>Datenstand: ${formatDateHelper(new Date)}`
-    const subject = `${changes.length} Starcar-Mieten geändert um ${new Date().toLocaleTimeString('de-DE', {hour:'2-digit',minute: '2-digit'})}`
-    return {content, subject}
-}
-
-function sendEmail (message) {
-    
-    const mailOptions = {
-        from: SENDER_MAIL,
-        to: TARGET_MAIL,
-        subject: message.subject,
-        html: message.content
-    };
-
-    transporter.sendMail(mailOptions, (error, info) => {
-        if (error) {
-            console.error(error);
-        } else {
-            console.log(`Email sent: ${info.response}`);
-        }
-    });
-};
 
 function findSimilar(item, array){
     const propertiesFirstMatch = ['pickupCity','returnCity','group','model']
@@ -134,15 +126,11 @@ function compareData (currentArray, previousArray) {
     return changes;
 };
 
-function formatDateHelper (timestamp) {
-    return new Date(timestamp).toLocaleString('de-DE', {weekday: 'long', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'})
-}
-
 function formatChange (change) {
     let message = `<span style="font-size: 1.1em"><b>${change.model}</b> - ${change.group}<br/></span>`;
     message += `Von <b>${change.pickupCity}</b> nach <b>${change.returnCity}</b><br/>`;
 
-    message += `Ab ${formatDateHelper(change.pickupTimestamp)} bis ${formatDateHelper(change.returnTimestamp)}<br/>`
+    message += `Ab ${app.formatDateHelper(change.pickupTimestamp)} bis ${app.formatDateHelper(change.returnTimestamp)}<br/>`
     message += `Inkl. ${change.distance} km`
     if (change.freeFuel)
         message += ` und einer Tankfüllung`
@@ -166,7 +154,7 @@ function formatChange (change) {
                 else return 'Tankfüllung geändert'
             }
             if (/.+Timestamp/.exec(difference.field) )
-                return `${fieldNameMap[difference.field]} (${formatDateHelper(difference.oldValue)} → ${formatDateHelper(difference.newValue)})`
+                return `${fieldNameMap[difference.field]} (${app.formatDateHelper(difference.oldValue)} → ${app.formatDateHelper(difference.newValue)})`
             
             console.log(difference);
             return `${fieldNameMap[difference.field]} (${difference.oldValue} → ${difference.newValue})`
@@ -176,53 +164,12 @@ function formatChange (change) {
     return message;
 }
 
-function logError(fail, error, data) {
-    const message = `${fail}
-    ${error.message}
-    ${data ? `Historischer Datensatz: ${data.previousArray}<br/> Aktueller Datensatz: ${data.currentArray}`: ``}`;
-    console.log(`${new Date.toString()}:${message}`);
-    sendEmail({subject: 'Starcar: Fehler', content: message});
-    process.exit(1);
+async function run() {
+    if (typeof TARGET_MAIL === null) app.handleError('No target mail address set');
+    if (typeof SENDER_MAIL === null) app.handleError('No sender mail address set');
+    if (typeof SMTP_STRING === null) app.handleError('Missing SMTP connection url');
+
+    await app.run();
 }
-
-async function run () {
-    let currentArray = [];
-    try {
-        currentArray = await getStarcarData();
-    } catch (error) {
-        logError('Fehler beim Laden der aktuellen Daten', error)
-    }
-
-    let previousArray = [];
-    try {
-        previousArray = JSON.parse(fs.readFileSync('data.json', 'utf-8'));
-    } catch (error) {
-        logError('Historische Daten konnten nicht gelesen werden.', error);
-    }
-    let changes;
-    try {
-        changes = compareData(currentArray, previousArray);
-    } catch (error) {
-        logError('Fehler beim Datenvergleich', error, {previousArray,currentArray})
-    }
-
-    try {
-        if (changes.length > 0) {
-            const email = formatEmail(changes);
-            sendEmail(email);
-        }
-        else {
-            console.log(`${new Date().toString()}: No changes made`);
-        }
-    } catch (error) {
-        logError('Fehler beim Senden der Nachricht', error)
-    }
-
-    try {
-        fs.writeFileSync('data.json', JSON.stringify(currentArray, null, 2));    
-    } catch (error) {
-        logError('Fehler beim schreiben der Daten', error)
-    }
-};
 
 run();
